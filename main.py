@@ -1,5 +1,6 @@
 import time
-
+import json
+import telethon
 import telethon.errors.rpcerrorlist
 from opentele.td import TDesktop
 from opentele.tl import TelegramClient
@@ -8,7 +9,9 @@ from opentele.api import API, CreateNewSession, UseCurrentSession
 import asyncio
 import socks
 import os
-day_limit = 1
+import random
+start_time = time.time()
+day_limit = 11
 def get_sessions():
     if not os.path.exists('sessions'):
         return False
@@ -45,42 +48,121 @@ def raspred_proxies():
     accs = list()
     counter = 0
     for i in range(len(sess)):
-        accs.append([proxies[counter],sess[i], []])
+        accs.append([proxies[counter],sess[i]])
         counter += 1
-        if counter == len(proxies) - 1:
+        if counter >= len(proxies) - 1:
             counter = 0
     return accs
 
 
 sessions = raspred_proxies()
 for i in range(len(targets)):
-    targets[i] = [targets[i][0], targets[i][1], sessions]
-async def main():
+    random_sessions = sessions.copy()
+    random.shuffle(sessions.copy())
+    targets[i] = [targets[i][0], targets[i][1], random_sessions]
+async def main(targets):
     while targets:
         for i in range(len(targets)):
-            if targets[i][1] <= 0:
-                targets.remove(targets[i])
+            if not targets:
+                break
+            try:
+                if targets[i][1] <= 0:
+                    targets.remove(targets[i])
+                    continue
+            except IndexError:
                 continue
             if not targets[i][2]:
-                print(f'Нет доступных аккаунтов для подписки на {targets[i][2]}')
+                print(f'Нет доступных аккаунтов для подписки на {targets[i][0]}')
                 targets.remove(targets[i])
                 continue
+
             session = targets[i][2].pop()
-            if len(session[2]) >= 10:
-                for q in session[2]:
-                    if time.time() - q >= 24 * 60 * 60:
-                        session[2].remove(q)
-                if len(session[2]) >= 10:
-                    continue
+
             tdataFolder = fr"sessions/{session[1]}/tdata"
             tdesk = TDesktop(tdataFolder)
             api = API.TelegramIOS.Generate()
-            client = await tdesk.ToTelethon("newSession.session" , UseCurrentSession , api, proxy=session[0])
-            await client.connect()
-            channel = await client.get_entity(targets[i][0])
-            await client(JoinChannelRequest(channel))
+            print(f'Попытка подключиться к {session[1]}')
+            try:
+                client = await tdesk.ToTelethon(f"{session[1]}.session" , UseCurrentSession , api, proxy=session[0])
+            except:
+                print(f'Некорректная tdata {session[1]}')
+                continue
+            if client.is_connected():
+                targets[i][2] = [session] + targets[i][2]
+                print(f'Сессия {session[1]} уже активна.')
+                continue
+            with open("sessions_limits.json", 'r', encoding='utf8') as file:
+                data = json.load(file)
+            if data.get(session[1]):
+                limits = data.get(session[1])
+            else:
+                limits = []
+                with open('sessions_limits.json', 'w', encoding='utf8') as file:
+                    data[session[1]] = limits
+                    json.dump(data, file)
+            if len(limits) >= day_limit:
+                for q in limits:
+                    if time.time() - q >= 24 * 60 * 60:
+                        limits.remove(q)
+                        with open('sessions_limits.json', 'w', encoding='utf8') as file:
+                            data[session[1]] = limits
+                            json.dump(data, file)
+                if len(limits) >= day_limit:
+                    print(f'Для сессии {session[1]} исчерпан суточный лимит подписок')
+                    continue
+            try:
+                await client.connect()
+            except OSError:
+                print(f'Не удалось подключитсья к сессии {session[1]}')
+                continue
+            print(f'Подключена сессия {session[1]} для подписки на {targets[i][0]}')
+            try:
+                #channel = await client.get_entity(targets[ i ][ 0 ])
+                pass
+            except TypeError:
+                print(f'Некорректное значение {targets[i][0]}')
+                continue
+            except ValueError:
+                print(f'Не найден канал по ссылке {targets[i][0]}')
+                continue
+            flag = False
+            #for chat in (await client(telethon.functions.messages.GetAllChatsRequest(except_ids=[]))).chats:
+                #
+                #print(33)
+                #if targets[i][0] == chat.username:
+                    #flag = True
+            if flag:
+                try:
+                    print(f'{session[ 1 ]} уже подписан на {targets[ i ][ 0 ]}')
+                    await client.disconnect()
+                    continue
+                except OSError:
+                    print(f'Ошибка при отключении от сессии {session[1]}')
+                    continue
+            print(f'Попытка сессии {session[1]} подписаться на {targets[i][0]}')
+            try:
+                #
+                await client(JoinChannelRequest(targets[i][0]))
+            except telethon.errors.rpcerrorlist.ChannelsTooMuchError:
+                print(f'Превышен лимит на количество каналов для сессии {session[1]}')
+                continue
+            except telethon.errors.rpcerrorlist.SessionRevokedError:
+                print(f'Проблемы с авторизацией для сессии {session[1]}')
+                continue
+            except telethon.errors.rpcerrorlist.ChannelInvalidError:
+                print(f'Некорректный объект типа \"Канал\"')
+                continue
+            except telethon.errors.rpcerrorlist.ChannelPrivateError:
+                print(f'Канал имеет тип \"Приватный\", невозможно к нему присоединиться')
+                continue
+            with open('sessions_limits.json', 'r', encoding='utf8') as file:
+                data = json.load(file)
+                data[session[1]].append(time.time())
+            with open('sessions_limits.json', 'w', encoding='utf8') as file:
+                json.dump(data,file)
+            print(f'Сессия{session[1]} подписалась на {targets[i][0]}')
             targets[i][1] -= 1
             await client.disconnect()
 
-
-asyncio.run(main())
+asyncio.run(main(targets))
+print(time.time()-start_time)
