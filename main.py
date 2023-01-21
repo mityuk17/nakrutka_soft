@@ -9,9 +9,10 @@ from opentele.api import API, CreateNewSession, UseCurrentSession
 import asyncio
 import socks
 import os
+import threading
 import random
 start_time = time.time()
-day_limit = 11
+day_limit = 10
 def get_sessions():
     if not os.path.exists('sessions'):
         return False
@@ -24,7 +25,7 @@ def get_proxies():
         data = file.readlines()
     for i in range(len(data)):
         data[i] = data[i].strip().split(':')
-        data[i] = (socks.HTTP, data[i][0], data[i][1], data[i][2], data[i][3])
+        data[i] = {"proxy_type":'http','addr':data[i][0], 'port':int(data[i][1]),'username': data[i][2],'password': data[i][3]}
     return data
 def get_targets():
     with open('targets.txt', 'r') as file:
@@ -60,6 +61,28 @@ for i in range(len(targets)):
     random_sessions = sessions.copy()
     random.shuffle(sessions.copy())
     targets[i] = [targets[i][0], targets[i][1], random_sessions]
+#num_threads = min(len(targets),int(input()))
+num_threads = 4
+
+def raspred_targets_by_threads():
+    threads_data = list()
+    for i in range(num_threads):
+        threads_data.append([])
+    while targets:
+        for i in range(len(threads_data)):
+            if not(targets):
+                break
+            threads_data[i].append(targets.pop())
+    return threads_data
+def get_threads():
+    threads = []
+    threads_data = raspred_targets_by_threads()
+    for i in range(num_threads):
+        threads.append(threading.Thread(target=start_main, args=[threads_data[i]]))
+    for i in threads:
+        i.start()
+def start_main(targets):
+    asyncio.run(main(targets))
 async def main(targets):
     while targets:
         for i in range(len(targets)):
@@ -83,7 +106,7 @@ async def main(targets):
             api = API.TelegramIOS.Generate()
             print(f'Попытка подключиться к {session[1]}')
             try:
-                client = await tdesk.ToTelethon(f"{session[1]}.session" , UseCurrentSession , api, proxy=session[0])
+                client = await tdesk.ToTelethon(f"{session[1]}.session" , UseCurrentSession , api, proxy= session[0])
             except:
                 print(f'Некорректная tdata {session[1]}')
                 continue
@@ -109,11 +132,12 @@ async def main(targets):
                             json.dump(data, file)
                 if len(limits) >= day_limit:
                     print(f'Для сессии {session[1]} исчерпан суточный лимит подписок')
+                    targets[i][2] = [session] + targets[i][2]
                     continue
             try:
                 await client.connect()
             except OSError:
-                print(f'Не удалось подключитсья к сессии {session[1]}')
+                print(f'Не удалось подключиться к сессии {session[1]}')
                 continue
             print(f'Подключена сессия {session[1]} для подписки на {targets[i][0]}')
             try:
@@ -163,6 +187,6 @@ async def main(targets):
             print(f'Сессия{session[1]} подписалась на {targets[i][0]}')
             targets[i][1] -= 1
             await client.disconnect()
-
-asyncio.run(main(targets))
+get_threads()
+A = input('finish')
 print(time.time()-start_time)
