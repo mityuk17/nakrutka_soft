@@ -4,8 +4,8 @@ from pathlib import Path
 from opentele.api import API
 
 api = API.TelegramAndroid.Generate()
-API_ID = api.api_id
-API_HASH = api.api_hash
+#API_ID = api.api_id
+#API_HASH = api.api_hash
 
 
 def main():
@@ -13,6 +13,8 @@ def main():
     print(session)
     res = session.pyrogram_client()
     print(res)
+    res.start()
+    print(res.get_me())
 
 
 if __name__ == "__main__":
