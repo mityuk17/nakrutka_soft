@@ -1,13 +1,14 @@
 import time
 import json
 import telethon
-
-import python_socks
+from pyrogram import Client
 import telethon.errors.rpcerrorlist
 from opentele.td import TDesktop
 from opentele.tl import TelegramClient
 from telethon.tl.functions.channels import JoinChannelRequest
 from opentele.api import API, CreateNewSession, UseCurrentSession
+from TGConvertor.manager.manager import SessionManager
+from pathlib import Path
 import asyncio
 import socks
 import os
@@ -82,10 +83,10 @@ def get_threads():
     for i in threads:
         i.start()
 def start_main(targets):
-    # asyncio.set_event_loop(asyncio.SelectorEventLoop())
-    # loop = asyncio.get_event_loop()
-    # loop.run_until_complete(main(targets))
-    asyncio.run(main(targets))
+    asyncio.set_event_loop(asyncio.SelectorEventLoop())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main(targets))
+    #asyncio.run(main(targets))
 async def main(targets):
     while targets:
         for i in range(len(targets)):
@@ -101,26 +102,30 @@ async def main(targets):
                 print(f'Нет доступных аккаунтов для подписки на {targets[i][0]}')
                 targets.remove(targets[i])
                 continue
-            await asyncio.sleep(5)
+            await asyncio.sleep(10)
             session = targets[i][2].pop()
-
-            tdataFolder = fr"sessions/{session[1]}/tdata"
-            if not os.path.exists(tdataFolder):
-                continue
-            tdesk = TDesktop(tdataFolder)
             api = API.TelegramDesktop.Generate(session[1])
-            print(api)
             print(f'Попытка подключиться к {session[1]}')
             try:
+                #proxy = (socks.HTTP, session[0]['addr'],session[0]['port'], session[0]['username'], session[0]['password'])
+                proxy = {
+                    'scheme' : 'http',
+                    'hostname' : session[0]['addr'],
+                    'port' : session[0]['port'],
+                    'username' : session[0]['username'],
+                    'password' : session[0]['password']
+                }
+                sess = SessionManager.from_tdata_folder(Path(fr"sessions/{session[1]}/tdata"))
+                sess.api = api
+                client = sess.pyrogram_client(proxy=proxy)
 
-                proxy = (python_socks.ProxyType.HTTP, session[0]['addr'],session[0]['port'], session[0]['username'], session[0]['password'])
-                print(proxy)
-                client = await tdesk.ToTelethon(f"session_files/{session[1]}.session" , UseCurrentSession, api, proxy=proxy)
+                #client = Client(f'session_files/my_account',api.api_id, api.api_hash, proxy=proxy)
+
             except Exception as e:
                 print(e)
                 print(f'Некорректная tdata {session[1]}')
                 continue
-            if client.is_connected():
+            if client.is_connected:
                 targets[i][2] = [session] + targets[i][2]
                 print(f'Сессия {session[1]} уже активна.')
                 continue
@@ -145,9 +150,8 @@ async def main(targets):
                     targets[i][2] = [session] + targets[i][2]
                     continue
             try:
-                await client.connect()
-                print( await client.GetCurrentSession())
-            except OSError:
+                await client.start()
+            except ConnectionError:
                 print(f'Не удалось подключиться к сессии {session[1]}')
                 continue
             if not(await client.get_me()):
@@ -175,14 +179,9 @@ async def main(targets):
             #         continue
             print(f'Попытка сессии {session[1]} подписаться на {targets[i][0]}')
             try:
-                #
-                await client(JoinChannelRequest(targets[i][0]))
+                await client.join_chat(targets[i][0])
             except ValueError:
-                try:
-                    await client(telethon.tl.functions.messages.ImportChatInviteRequest(targets[i][0][1:]))
-                except Exception as e:
-                    print(e)
-                    continue
+                print('Не найден канал')
             except telethon.errors.rpcerrorlist.ChannelsTooMuchError:
                 print(f'Превышен лимит на количество каналов для сессии {session[1]}')
                 continue
@@ -207,6 +206,9 @@ async def main(targets):
                 json.dump(data,file)
             print(f'Сессия{session[1]} подписалась на {targets[i][0]}')
             targets[i][1] -= 1
-            await client.disconnect()
+            await client.stop()
+
 
 get_threads()
+while True:
+    pass
