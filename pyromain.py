@@ -125,7 +125,6 @@ async def main(targets):
                 print(f'Нет доступных аккаунтов для подписки на {targets[ i ][ 0 ]}')
                 targets.remove(targets[ i ])
                 continue
-            await asyncio.sleep(10)
             session = targets[ i ][ 2 ].pop()
             try:
                 api = API.TelegramDesktop.Generate(session[ 1 ])
@@ -188,6 +187,9 @@ async def main(targets):
             except ConnectionError:
                 print(f'Не удалось подключиться к сессии {session[ 1 ]}')
                 continue
+            except TypeError:
+                print(f'Не удалось подключиться к сессии {session[ 1 ]}')
+                continue
             if not (await client.get_me()):
                 os.replace(fr'sessions/{session[ 1 ]}' , fr'banned_sessions/{session[ 1 ]}')
             print(f'Подключена сессия {session[ 1 ]} для подписки на {targets[ i ][ 0 ]}')
@@ -213,9 +215,14 @@ async def main(targets):
             #         continue
             print(f'Попытка сессии {session[ 1 ]} подписаться на {targets[ i ][ 0 ]}')
             try:
+
                 await client.join_chat(targets[ i ][ 0 ])
             except ValueError:
-                print('Не найден канал')
+                print('Не найден канал {targets[i][0]}')
+                continue
+            except KeyError:
+                print(f'Не найден канал {targets[i][0]}')
+                continue
             try:
                 with lock:
                     with open('sessions_limits.json' , 'r' , encoding='utf8') as file:
@@ -228,6 +235,8 @@ async def main(targets):
                 targets[ i ][ 1 ] -= 1
             except json.JSONDecodeError:
                 print("Ошибка при записи в json-файл")
+            except Exception as e:
+                print('Ошибка при работе с json-файлом')
             await client.stop()
     print(f'Поток {threading.currentThread()} закончил работу')
 
