@@ -144,8 +144,6 @@ async def main(targets):
                 sess.api = api
                 client = sess.pyrogram_client(proxy=proxy)
 
-                # client = Client(f'session_files/my_account',api.api_id, api.api_hash, proxy=proxy)
-
             except Exception as e:
                 print(e)
                 print(f'Некорректная tdata {session[ 1 ]}')
@@ -193,26 +191,6 @@ async def main(targets):
             if not (await client.get_me()):
                 os.replace(fr'sessions/{session[ 1 ]}' , fr'banned_sessions/{session[ 1 ]}')
             print(f'Подключена сессия {session[ 1 ]} для подписки на {targets[ i ][ 0 ]}')
-            # try:
-            #     channel = await client.get_entity(targets[ i ][ 0 ])
-            # except TypeError:
-            #     print(f'Некорректное значение {targets[i][0]}')
-            #     continue
-            # except ValueError:
-            #     print(f'Не найден канал по ссылке {targets[i][0]}')
-            #     continue
-            # flag = False
-            # for chat in (await client(telethon.functions.messages.GetAllChatsRequest(except_ids=[]))).chats:
-            #     if channel.title == chat.title:
-            #         flag = True
-            # if flag:
-            #     try:
-            #         print(f'{session[ 1 ]} уже подписан на {targets[ i ][ 0 ]}')
-            #         await client.disconnect()
-            #         continue
-            #     except OSError:
-            #         print(f'Ошибка при отключении от сессии {session[1]}')
-            #         continue
             print(f'Попытка сессии {session[ 1 ]} подписаться на {targets[ i ][ 0 ]}')
             try:
 
